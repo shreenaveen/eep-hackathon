@@ -23,3 +23,7 @@ VALUES('OK', 'F', 2021, 'Joe', 3)
 Look at Cloud Run web console for the service and see that it has been triggered
 
 Go to the BigQuery Console and see that you now have a table in the cloud_run_tmp2 dataset. This new table was created by the Cloud Run container.
+
+
+docker build -f Dockerfile -t eu.gcr.io/project/bq-cloud-run .
+docker push eu.gcr.io/project/bq-cloud-run:latest
