@@ -38,6 +38,22 @@ def index():
         rows = int(content['protoPayload']['metadata']['tableDataChange']['insertedRowsCount'])
         if ds == 'team4_cloud_run' and tbl.endswith('tables/DemiseRequests') and rows > 0:
             query = update_dr()
+            #return "Demise request updated with host attributes", 200
+            query = delete_fs()
+            #return "Demise request updated with host attributes", 200
+            query = insert_fs()
+            #return "Forescout inserted with host attributes", 200
+            query = delete_ad()
+            #return "Demise request updated with host attributes", 200
+            query = delete_aad()
+            #return "Demise request updated with host attributes", 200
+            query = delete_mc()
+            #return "Demise request updated with host attributes", 200
+            query = delete_sc()
+            #return "Demise request updated with host attributes", 200
+            query = delete_dh()
+            #return "Demise request updated with host attributes", 200
+            query = insert_dh()
             return "Demise request updated with host attributes", 200
     except:
         # if these fields are not in the JSON, ignore
@@ -59,13 +75,113 @@ SET
 FROM
   team4_cloud_run.SCCM_SystemData Sccm
 WHERE
-  DR.hostname = Sccm.hostname;
-INSERT INTO team4_cloud_run.forescout (id, hostname, macaddress, quarantine)
-SELECT id, hostname, macaddress, 'true' FROM team4_cloud_run.DemiseRequests;
+  DR.hostname = Sccm.hostname
     """
     client.query(query)
     return query
 
+
+def delete_fs():
+    client = bigquery.Client()
+    query = """
+TRUNCATE TABLE
+  team4_cloud_run.forescout 
+    """
+    client.query(query)
+    return query
+
+
+def insert_fs():
+    client = bigquery.Client()
+    query = """
+INSERT INTO team4_cloud_run.forescout (id, hostname, macaddress, quarantine)
+SELECT id, hostname, macaddress, 'true' FROM team4_cloud_run.DemiseRequests
+    """
+    client.query(query)
+    return query
+
+
+def delete_ad():
+    client = bigquery.Client()
+    query = """
+DELETE FROM team4_cloud_run.AD
+WHERE hostname=(
+SELECT hostname FROM team4_cloud_run.DemiseRequests
+WHERE CertifiedToRemove='true')
+    """
+    client.query(query)
+    return query
+
+
+def delete_aad():
+    client = bigquery.Client()
+    query = """
+DELETE FROM team4_cloud_run.AAD
+WHERE hostname=(
+SELECT hostname FROM team4_cloud_run.DemiseRequests
+WHERE  CertifiedToRemove='true')
+    """
+    client.query(query)
+    return query
+
+
+def delete_mc():
+    client = bigquery.Client()
+    query = """
+DELETE FROM team4_cloud_run.McAffee
+WHERE hostname=(
+SELECT hostname FROM team4_cloud_run.DemiseRequests
+WHERE  CertifiedToRemove='true')
+    """
+    client.query(query)
+    return query
+
+
+def delete_sc():
+    client = bigquery.Client()
+    query = """
+DELETE FROM team4_cloud_run.SCCM_SystemData
+WHERE hostname=(
+SELECT hostname FROM team4_cloud_run.DemiseRequests
+WHERE  CertifiedToRemove='true')
+    """
+    client.query(query)
+    return query
+
+
+def delete_dh():
+    client = bigquery.Client()
+    query = """
+TRUNCATE TABLE
+  team4_cloud_run.DemisedHosts 
+    """
+    client.query(query)
+    return query
+
+
+def insert_dh():
+    client = bigquery.Client()
+    query = """
+INSERT INTO  team4_cloud_run.DemisedHosts (id, hostname, addelete, sccmdelete,aaddelete,mcdelete, datedeleted, staffId )
+SELECT DR.id, DR.hostname, 
+case when AD.hostname is null then 'DELETED' ELSE 'NOT DELETED' END AS addelete,
+case when SC.hostname is null then 'DELETED' ELSE 'NOT DELETED' END AS sccmdelete,
+case when AAD.hostname is null then 'DELETED' ELSE 'NOT DELETED' END AS aaddelete,
+case when MC.hostname is null then 'DELETED' ELSE 'NOT DELETED' END AS mcdelete,
+date(current_timestamp) as datedeleted,
+session_user() as staffId
+FROM team4_cloud_run.DemiseRequests DR
+LEFT JOIN team4_cloud_run.AD AD
+ON AD.hostname=DR.hostname
+LEFT JOIN team4_cloud_run.AAD AAD
+ON AAD.hostname=DR.hostname
+LEFT JOIN team4_cloud_run.McAffee MC
+ON MC.hostname=DR.hostname
+LEFT JOIN team4_cloud_run.SCCM_SystemData SC
+ON SC.hostname=DR.hostname;
+    """
+    client.query(query)
+    return query
 
 # [START eventarc_gcs_server]
 if __name__ == "__main__":
